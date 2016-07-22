@@ -6,10 +6,12 @@ import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +25,8 @@ public class PhotoGalleryFragment extends Fragment{
 
     private static RecyclerView mPhotoRecyclerView;
     private List<GalleryItem> mItems = new ArrayList<>();
+
+    public int page = 1;
 
     public static PhotoGalleryFragment newInstance(){
         return new PhotoGalleryFragment();
@@ -40,8 +44,47 @@ public class PhotoGalleryFragment extends Fragment{
     public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_photo_gallery,container,false);
 
+
         mPhotoRecyclerView = (RecyclerView) v.findViewById(R.id.fragment_photo_gallery_recycler_view);
         mPhotoRecyclerView.setLayoutManager(new GridLayoutManager(getActivity(),3));
+        mPhotoRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
+                GridLayoutManager gridLayoutManager = (GridLayoutManager) recyclerView.getLayoutManager();
+                if (newState == RecyclerView.SCROLL_STATE_IDLE){
+                    Log.i(TAG,"newState == RecyclerView.SCROLL_STATE_IDLE");
+
+                    int itemCount = recyclerView.getAdapter().getItemCount();
+                    Log.i(TAG,String.valueOf(itemCount));
+
+                    int lastPosition = gridLayoutManager.findLastCompletelyVisibleItemPosition();
+                    Log.i(TAG,String.valueOf(lastPosition));
+
+                    int firstPosition = gridLayoutManager.findFirstCompletelyVisibleItemPosition();
+
+                    if ((itemCount - 1) == lastPosition){
+                        Log.i(TAG,"itemcount -1 = lastPosition");
+                        page++;
+                        new FetchItemsTask().execute();
+                        Toast.makeText(getActivity().getApplicationContext()
+                                ,"Loading page " + String.valueOf(page) + "...",Toast.LENGTH_LONG)
+                                .show();
+                    }
+                    else if (firstPosition == 0 && page > 1){
+                        page--;
+                        new FetchItemsTask().execute();
+                        Toast.makeText(getActivity().getApplicationContext()
+                                ,"Loading page " + String.valueOf(page) + "...",Toast.LENGTH_LONG)
+                                .show();
+                    }
+                }
+            }
+
+            @Override
+            public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
+                super.onScrolled(recyclerView, dx, dy);
+            }
+        });
 
         setupAdapter();
         return v;
@@ -57,7 +100,8 @@ public class PhotoGalleryFragment extends Fragment{
 
         @Override
         protected List<GalleryItem> doInBackground(Void... params) {
-            return new FlickrFetchr().fetchItems();
+
+            return new FlickrFetchr().fetchItems(page);
         }
 
         @Override

@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -53,7 +54,7 @@ public class FlickrFetchr {
         return new String(getUrlBytes(urlSpec));
     }
 
-    public List<GalleryItem> fetchItems(){
+    public List<GalleryItem> fetchItems(int page){
 
         List<GalleryItem> items = new ArrayList<>();
 
@@ -62,6 +63,7 @@ public class FlickrFetchr {
                     .buildUpon()
                     .appendQueryParameter("method", "flickr.photos.getRecent")
                     .appendQueryParameter("api_key", API_KEY)
+                    .appendQueryParameter("page", String.valueOf(page))
                     .appendQueryParameter("format", "json")
                     .appendQueryParameter("nojsoncallback", "1")
                     .appendQueryParameter("extras", "url_s")
@@ -70,7 +72,7 @@ public class FlickrFetchr {
             Log.i(TAG,"Received JSON: " + jsonString);
             JSONObject jsonBody = new JSONObject(jsonString);
             parseItems(items, jsonBody);
-            }
+        }
         catch (JSONException je){
             Log.e(TAG, "Failed to parse JSON", je);
         }
