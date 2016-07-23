@@ -1,5 +1,6 @@
 package com.bignerdranch.android.photogallery;
 
+import android.content.res.Resources;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
@@ -10,6 +11,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -22,12 +24,12 @@ import java.util.List;
 public class PhotoGalleryFragment extends Fragment{
 
     private static final String TAG = "PhotoGalleryFragment";
+    private static final int COLUMN_WIDTH = 300;
 
     private static RecyclerView mPhotoRecyclerView;
     private List<GalleryItem> mItems = new ArrayList<>();
 
     public int page = 1;
-
     public static PhotoGalleryFragment newInstance(){
         return new PhotoGalleryFragment();
     }
@@ -46,20 +48,24 @@ public class PhotoGalleryFragment extends Fragment{
 
 
         mPhotoRecyclerView = (RecyclerView) v.findViewById(R.id.fragment_photo_gallery_recycler_view);
-        mPhotoRecyclerView.setLayoutManager(new GridLayoutManager(getActivity(),3));
+        mPhotoRecyclerView.setLayoutManager(new GridLayoutManager(getActivity(),1));
+        mPhotoRecyclerView.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                int width = mPhotoRecyclerView.getWidth() / COLUMN_WIDTH;
+                GridLayoutManager layoutManager = (GridLayoutManager) mPhotoRecyclerView.getLayoutManager();
+                layoutManager.setSpanCount(width);
+
+            }
+        });
         mPhotoRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
                 GridLayoutManager gridLayoutManager = (GridLayoutManager) recyclerView.getLayoutManager();
                 if (newState == RecyclerView.SCROLL_STATE_IDLE){
-                    Log.i(TAG,"newState == RecyclerView.SCROLL_STATE_IDLE");
-
                     int itemCount = recyclerView.getAdapter().getItemCount();
-                    Log.i(TAG,String.valueOf(itemCount));
 
                     int lastPosition = gridLayoutManager.findLastCompletelyVisibleItemPosition();
-                    Log.i(TAG,String.valueOf(lastPosition));
-
                     int firstPosition = gridLayoutManager.findFirstCompletelyVisibleItemPosition();
 
                     if ((itemCount - 1) == lastPosition){
@@ -85,6 +91,7 @@ public class PhotoGalleryFragment extends Fragment{
                 super.onScrolled(recyclerView, dx, dy);
             }
         });
+
 
         setupAdapter();
         return v;
