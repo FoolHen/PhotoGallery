@@ -1,8 +1,12 @@
 package com.bignerdranch.android.photogallery;
 
 import android.content.res.Resources;
+import android.graphics.Bitmap;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.support.v7.widget.GridLayoutManager;
@@ -12,6 +16,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -25,9 +30,11 @@ public class PhotoGalleryFragment extends Fragment{
 
     private static final String TAG = "PhotoGalleryFragment";
     private static final int COLUMN_WIDTH = 300;
+    private static final int BUFFER_SIZE = 10;
 
     private static RecyclerView mPhotoRecyclerView;
     private List<GalleryItem> mItems = new ArrayList<>();
+    private ThumbnailDownloader<PhotoHolder> mThumbnailDownloader;
 
     public int page = 1;
     public static PhotoGalleryFragment newInstance(){
@@ -39,6 +46,22 @@ public class PhotoGalleryFragment extends Fragment{
         super.onCreate(savedInstanceState);
         setRetainInstance(true);
         new FetchItemsTask().execute();
+
+        Handler responseHandler = new Handler();
+        mThumbnailDownloader = new ThumbnailDownloader<>(responseHandler, getContext());
+        mThumbnailDownloader.setThumbnailDownloadListener(
+                new ThumbnailDownloader.ThumbnailDownloadListener<PhotoHolder>() {
+                    @Override
+                    public void onThumbnailDownloaded(PhotoHolder photoHolder, Bitmap bitmap) {
+                        Drawable drawable = new BitmapDrawable(getResources(), bitmap);
+                        photoHolder.bindDrawable(drawable);
+
+                    }
+                }
+        );
+        mThumbnailDownloader.start();
+        mThumbnailDownloader.getLooper();
+        Log.i(TAG,"Background thread started");
     }
 
     @Nullable
@@ -58,32 +81,42 @@ public class PhotoGalleryFragment extends Fragment{
 
             }
         });
+
         mPhotoRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
                 GridLayoutManager gridLayoutManager = (GridLayoutManager) recyclerView.getLayoutManager();
-                if (newState == RecyclerView.SCROLL_STATE_IDLE){
-                    int itemCount = recyclerView.getAdapter().getItemCount();
+                switch (newState){
+                    case RecyclerView.SCROLL_STATE_IDLE:
+                        int itemCount = recyclerView.getAdapter().getItemCount();
+                        int lastPosition = gridLayoutManager.findLastCompletelyVisibleItemPosition();
+                        int firstPosition = gridLayoutManager.findFirstCompletelyVisibleItemPosition();
 
-                    int lastPosition = gridLayoutManager.findLastCompletelyVisibleItemPosition();
-                    int firstPosition = gridLayoutManager.findFirstCompletelyVisibleItemPosition();
+                        preloadImages(firstPosition,lastPosition);
 
-                    if ((itemCount - 1) == lastPosition){
-                        Log.i(TAG,"itemcount -1 = lastPosition");
-                        page++;
-                        new FetchItemsTask().execute();
-                        Toast.makeText(getActivity().getApplicationContext()
-                                ,"Loading page " + String.valueOf(page) + "...",Toast.LENGTH_LONG)
-                                .show();
-                    }
-                    else if (firstPosition == 0 && page > 1){
-                        page--;
-                        new FetchItemsTask().execute();
-                        Toast.makeText(getActivity().getApplicationContext()
-                                ,"Loading page " + String.valueOf(page) + "...",Toast.LENGTH_LONG)
-                                .show();
-                    }
+                        if ((itemCount - 1) == lastPosition){
+                            Log.i(TAG,"itemcount -1 = lastPosition");
+                            page++;
+                            clearAll();
+                            new FetchItemsTask().execute();
+                            Toast.makeText(getActivity().getApplicationContext()
+                                    ,"Loading page " + String.valueOf(page) + "...",Toast.LENGTH_LONG)
+                                    .show();
+                        }
+                        else if (firstPosition == 0 && page > 1){
+                            page--;
+                            clearAll();
+                            new FetchItemsTask().execute();
+                            Toast.makeText(getActivity().getApplicationContext()
+                                    ,"Loading page " + String.valueOf(page) + "...",Toast.LENGTH_LONG)
+                                    .show();
+                        }
+                        break;
+                    case RecyclerView.SCROLL_STATE_DRAGGING:
+                        mThumbnailDownloader.clearPreloadQueue();
+                        break;
                 }
+
             }
 
             @Override
@@ -95,6 +128,39 @@ public class PhotoGalleryFragment extends Fragment{
 
         setupAdapter();
         return v;
+    }
+
+    private void preloadImages(int first, int last){
+
+        int max = Math.min(last + BUFFER_SIZE, mItems.size()-1);
+        int min = Math.max(first - BUFFER_SIZE, 0);
+        for (int i = min; i <= max; i++){
+            if (i >= first && i <= last){ //If the item is in the screen it doesn't download it
+                continue;
+            }
+            Log.i(TAG,"Thumbnail preload request sent" );
+            mThumbnailDownloader.preloadThumbnail(mItems.get(i).getUrl());
+        }
+
+    }
+
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        mThumbnailDownloader.quit();
+        Log.i(TAG, "Background thread destroyed");
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        clearAll();
+    }
+    private void clearAll(){
+        mThumbnailDownloader.clearDownloadQueue();
+        mThumbnailDownloader.clearPreloadQueue();
+        mThumbnailDownloader.clearCache();
     }
 
     private void setupAdapter(){
@@ -118,15 +184,16 @@ public class PhotoGalleryFragment extends Fragment{
         }
     }
     private class PhotoHolder extends RecyclerView.ViewHolder{
-        private TextView mTitleTextView;
+        private ImageView mItemImageView;
 
         public PhotoHolder(View itemView) {
             super(itemView);
-            mTitleTextView = (TextView) itemView;
+            mItemImageView = (ImageView) itemView
+                    .findViewById(R.id.fragment_photo_gallery_image_view);
         }
 
-        public void bindGallery(GalleryItem item){
-            mTitleTextView.setText(item.toString());
+        public void bindDrawable(Drawable drawable){
+            mItemImageView.setImageDrawable(drawable);
 
         }
     }
@@ -140,15 +207,26 @@ public class PhotoGalleryFragment extends Fragment{
         }
 
         @Override
-        public PhotoHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-            TextView textView = new TextView(getActivity());
-            return new PhotoHolder(textView);
+        public PhotoHolder onCreateViewHolder(ViewGroup viewGroup, int viewType) {
+            LayoutInflater inflater = LayoutInflater.from(getActivity());
+            View view = inflater.inflate(R.layout.gallery_item, viewGroup,false);
+            return new PhotoHolder(view);
         }
 
         @Override
         public void onBindViewHolder(PhotoHolder photoHolder, int position) {
             GalleryItem galleryItem = mGalleryItems.get(position);
-            photoHolder.bindGallery(galleryItem);
+            Bitmap bitmap = mThumbnailDownloader.getCachedImage(galleryItem.getUrl());
+            if (bitmap == null){
+                Drawable placeholder = getResources().getDrawable(R.drawable.loading_icon);
+                photoHolder.bindDrawable(placeholder);
+                mThumbnailDownloader.queueThumbnail(photoHolder,galleryItem.getUrl());
+            }
+            else {
+                photoHolder.bindDrawable(new BitmapDrawable(getResources(), bitmap));
+
+            }
+
         }
 
         @Override

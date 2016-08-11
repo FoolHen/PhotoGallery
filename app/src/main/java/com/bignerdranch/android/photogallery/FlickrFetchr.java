@@ -68,7 +68,7 @@ public class FlickrFetchr {
                     .appendQueryParameter("extras", "url_s")
                     .build().toString();
             String jsonString = getUrlString(url);
-            Log.i(TAG,"Received JSON: " + jsonString);
+            //Log.i(TAG,"Received JSON: " + jsonString);
             JSONObject jsonBody = new JSONObject(jsonString);
             parseItems(items, jsonBody);
         }
