@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class ThumbnailDownloader<T> extends HandlerThread {
     private static final String TAG = "ThumbnailDownloader";
-    private static final int MESSAGE_DONWLOAD = 0;
+    private static final int MESSAGE_DOWNLOAD = 0;
     private static final int MESSAGE_PRELOAD = 1;
 
     private Handler mRequestHandler;
@@ -44,7 +44,7 @@ public class ThumbnailDownloader<T> extends HandlerThread {
         ActivityManager am = (ActivityManager) context.getSystemService(
                 Context.ACTIVITY_SERVICE);
         int maxKb = am.getMemoryClass() * 1024;
-        int limitKb = maxKb / 8; // 1/8th of total ram
+        int limitKb = maxKb / 8; // 1/8th of RAM
         mLruCache = new LruCache<>(limitKb);
     }
 
@@ -54,7 +54,7 @@ public class ThumbnailDownloader<T> extends HandlerThread {
             @Override
             public void handleMessage(Message msg) {
                 switch (msg.what){
-                    case MESSAGE_DONWLOAD:
+                    case MESSAGE_DOWNLOAD:
                         T target = (T) msg.obj;
                         Log.i(TAG, "Got a request for URL: " + mRequestMap.get(target));
                         handleRequest(target);
@@ -69,10 +69,12 @@ public class ThumbnailDownloader<T> extends HandlerThread {
     }
 
     public void clearDownloadQueue(){
-        mRequestHandler.removeMessages(MESSAGE_DONWLOAD);
+        mRequestHandler.removeMessages(MESSAGE_DOWNLOAD);
+        mRequestMap.clear();
     }
     public void clearPreloadQueue(){
         mRequestHandler.removeMessages(MESSAGE_PRELOAD);
+        mRequestMap.clear();
     }
 
     public void clearCache(){
@@ -89,6 +91,7 @@ public class ThumbnailDownloader<T> extends HandlerThread {
             @Override
             public void run() {
                 if (mRequestMap.get(target) != url){
+                //if (mRequestMap.get(target).equals(url)){
                     return;
                 }
 
@@ -105,7 +108,7 @@ public class ThumbnailDownloader<T> extends HandlerThread {
             mRequestMap.remove(target);
         } else {
             mRequestMap.put(target, url);
-            mRequestHandler.obtainMessage(MESSAGE_DONWLOAD,target)
+            mRequestHandler.obtainMessage(MESSAGE_DOWNLOAD,target)
                     .sendToTarget();
         }
 
