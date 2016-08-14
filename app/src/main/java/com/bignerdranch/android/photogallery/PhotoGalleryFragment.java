@@ -1,5 +1,7 @@
 package com.bignerdranch.android.photogallery;
 
+import android.app.Activity;
+import android.app.ProgressDialog;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
@@ -20,6 +22,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -39,6 +42,7 @@ public class PhotoGalleryFragment extends Fragment{
     private static RecyclerView mPhotoRecyclerView;
     private List<GalleryItem> mItems = new ArrayList<>();
     private ThumbnailDownloader<PhotoHolder> mThumbnailDownloader;
+    private ProgressDialog mProgressDialog;
 
     public int page = 1;
     public static PhotoGalleryFragment newInstance(){
@@ -97,12 +101,11 @@ public class PhotoGalleryFragment extends Fragment{
                         int lastPosition = gridLayoutManager.findLastCompletelyVisibleItemPosition();
                         int firstPosition = gridLayoutManager.findFirstCompletelyVisibleItemPosition();
 
-                        preloadImages(firstPosition,lastPosition);
+                        preloadImages(firstPosition, lastPosition);
 
                         if ((itemCount - 1) == lastPosition){
                             Log.i(TAG,"itemcount -1 = lastPosition");
                             page++;
-                            clearAll();
                             updateItems();
                             Toast.makeText(getActivity().getApplicationContext()
                                     ,"Loading page " + String.valueOf(page) + "...",Toast.LENGTH_LONG)
@@ -110,7 +113,6 @@ public class PhotoGalleryFragment extends Fragment{
                         }
                         else if (firstPosition == 0 && page > 1){
                             page--;
-                            clearAll();
                             updateItems();
                             Toast.makeText(getActivity().getApplicationContext()
                                     ,"Loading page " + String.valueOf(page) + "...",Toast.LENGTH_LONG)
@@ -119,17 +121,16 @@ public class PhotoGalleryFragment extends Fragment{
                         break;
                     case RecyclerView.SCROLL_STATE_DRAGGING:
                         mThumbnailDownloader.clearDownloadQueue();
-                        mThumbnailDownloader.clearPreloadQueue();
                         break;
                 }
             }
+
 
             @Override
             public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
                 super.onScrolled(recyclerView, dx, dy);
             }
         });
-
 
         setupAdapter();
         return v;
@@ -164,9 +165,11 @@ public class PhotoGalleryFragment extends Fragment{
     }
 
     private void clearAll(){
-        mThumbnailDownloader.clearDownloadQueue();
-        mThumbnailDownloader.clearPreloadQueue();
-        mThumbnailDownloader.clearCache();
+        if (mThumbnailDownloader != null){
+            mThumbnailDownloader.clearDownloadQueue();
+            mThumbnailDownloader.clearPreloadQueue();
+            mThumbnailDownloader.clearCache();
+        }
     }
 
     @Override
@@ -182,6 +185,8 @@ public class PhotoGalleryFragment extends Fragment{
             public boolean onQueryTextSubmit(String query) {
                 Log.d(TAG, "QueryTextSubmit: " + query);
                 QueryPreferences.setStoredQuery(getActivity(),query);
+                hideKeyboard(getActivity());
+                searchView.onActionViewCollapsed();
                 updateItems();
                 return true;
             }
@@ -193,6 +198,25 @@ public class PhotoGalleryFragment extends Fragment{
             }
         });
 
+        searchView.setOnSearchClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String query = QueryPreferences.getStoredQuery(getActivity());
+                searchView.setQuery(query, false);
+            }
+        });
+
+    }
+
+    public static void hideKeyboard(Activity activity) {
+        InputMethodManager imm = (InputMethodManager) activity.getSystemService(Activity.INPUT_METHOD_SERVICE);
+        //Find the currently focused view, so we can grab the correct window token from it.
+        View view = activity.getCurrentFocus();
+        //If no view currently has focus, create a new one, just so we can grab a window token from it
+        if (view == null) {
+            view = new View(activity);
+        }
+        imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
     }
 
     @Override
@@ -208,7 +232,12 @@ public class PhotoGalleryFragment extends Fragment{
     }
 
     private void updateItems(){
+        clearAll();
         String query = QueryPreferences.getStoredQuery(getActivity());
+        if (mPhotoRecyclerView != null){
+            mPhotoRecyclerView.setAdapter(null);
+        }
+
         new FetchItemsTask(query).execute();
     }
 
@@ -226,6 +255,16 @@ public class PhotoGalleryFragment extends Fragment{
         }
 
         @Override
+        protected void onPreExecute() {
+            mProgressDialog = new ProgressDialog(getActivity());
+            mProgressDialog.setTitle(R.string.dialog_title);
+            mProgressDialog.setCancelable(false);
+            mProgressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
+            mProgressDialog.setIndeterminate(true);
+            mProgressDialog.show();
+        }
+
+        @Override
         protected List<GalleryItem> doInBackground(Void... params) {
 
             if (mQuery == null){
@@ -238,6 +277,9 @@ public class PhotoGalleryFragment extends Fragment{
         @Override
         protected void onPostExecute(List<GalleryItem> items) {
             mItems = items;
+            if (mProgressDialog != null){
+                mProgressDialog.dismiss();
+            }
             setupAdapter();
         }
     }
@@ -262,6 +304,7 @@ public class PhotoGalleryFragment extends Fragment{
 
         public PhotoAdapter(List<GalleryItem> galleryItems) {
             mGalleryItems = galleryItems;
+            preloadImages(0,8);
         }
 
         @Override

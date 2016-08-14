@@ -91,10 +91,8 @@ public class ThumbnailDownloader<T> extends HandlerThread {
             @Override
             public void run() {
                 if (mRequestMap.get(target) != url){
-                //if (mRequestMap.get(target).equals(url)){
                     return;
                 }
-
                 mRequestMap.remove(target);
                 mThumbnailDownloadListener.onThumbnailDownloaded(target, bitmap);
             }
