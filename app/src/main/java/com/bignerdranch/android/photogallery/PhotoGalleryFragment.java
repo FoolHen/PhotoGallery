@@ -2,6 +2,7 @@ package com.bignerdranch.android.photogallery;
 
 import android.app.Activity;
 import android.app.ProgressDialog;
+import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
@@ -39,10 +40,11 @@ public class PhotoGalleryFragment extends Fragment{
     private static final int COLUMN_WIDTH = 300;
     private static final int BUFFER_SIZE = 10;
 
-    private static RecyclerView mPhotoRecyclerView;
+    private RecyclerView mPhotoRecyclerView;
     private List<GalleryItem> mItems = new ArrayList<>();
     private ThumbnailDownloader<PhotoHolder> mThumbnailDownloader;
     private ProgressDialog mProgressDialog;
+    private Menu mMenu;
 
     public int page = 1;
     public static PhotoGalleryFragment newInstance(){
@@ -55,6 +57,9 @@ public class PhotoGalleryFragment extends Fragment{
         setRetainInstance(true);
         setHasOptionsMenu(true);
         updateItems();
+
+        Intent i = PollService.newIntent(getActivity());
+        getActivity().startService(i);
 
         Handler responseHandler = new Handler();
         mThumbnailDownloader = new ThumbnailDownloader<>(responseHandler, getContext());
@@ -101,8 +106,6 @@ public class PhotoGalleryFragment extends Fragment{
                         int lastPosition = gridLayoutManager.findLastCompletelyVisibleItemPosition();
                         int firstPosition = gridLayoutManager.findFirstCompletelyVisibleItemPosition();
 
-                        preloadImages(firstPosition, lastPosition);
-
                         if ((itemCount - 1) == lastPosition){
                             Log.i(TAG,"itemcount -1 = lastPosition");
                             page++;
@@ -118,6 +121,9 @@ public class PhotoGalleryFragment extends Fragment{
                                     ,"Loading page " + String.valueOf(page) + "...",Toast.LENGTH_LONG)
                                     .show();
                         }
+
+                        preloadImages(firstPosition, lastPosition);
+
                         break;
                     case RecyclerView.SCROLL_STATE_DRAGGING:
                         mThumbnailDownloader.clearDownloadQueue();
@@ -131,7 +137,6 @@ public class PhotoGalleryFragment extends Fragment{
                 super.onScrolled(recyclerView, dx, dy);
             }
         });
-
         setupAdapter();
         return v;
     }
@@ -178,6 +183,7 @@ public class PhotoGalleryFragment extends Fragment{
         inflater.inflate(R.menu.fragment_photo_gallery, menu);
 
         MenuItem searchItem = menu.findItem(R.id.menu_item_search);
+        mMenu = menu;
         final SearchView searchView = (SearchView) searchItem.getActionView();
 
         searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
@@ -224,6 +230,11 @@ public class PhotoGalleryFragment extends Fragment{
         switch (item.getItemId()){
             case R.id.menu_item_clear:
                 QueryPreferences.setStoredQuery(getActivity(),null);
+                hideKeyboard(getActivity());
+
+                MenuItem searchItem = mMenu.findItem(R.id.menu_item_search);
+                SearchView searchView = (SearchView) searchItem.getActionView();
+                searchView.onActionViewCollapsed();
                 updateItems();
                 return true;
             default:
@@ -294,7 +305,6 @@ public class PhotoGalleryFragment extends Fragment{
 
         public void bindDrawable(Drawable drawable){
             mItemImageView.setImageDrawable(drawable);
-
         }
     }
 
@@ -304,7 +314,6 @@ public class PhotoGalleryFragment extends Fragment{
 
         public PhotoAdapter(List<GalleryItem> galleryItems) {
             mGalleryItems = galleryItems;
-            preloadImages(0,8);
         }
 
         @Override
