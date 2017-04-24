@@ -12,6 +12,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.SearchView;
@@ -319,7 +320,7 @@ public class PhotoGalleryFragment extends Fragment{
         @Override
         public PhotoHolder onCreateViewHolder(ViewGroup viewGroup, int viewType) {
             LayoutInflater inflater = LayoutInflater.from(getActivity());
-            View view = inflater.inflate(R.layout.gallery_item, viewGroup,false);
+            View view = inflater.inflate(R.layout.gallery_item, viewGroup, false);
             return new PhotoHolder(view);
         }
 
@@ -329,7 +330,7 @@ public class PhotoGalleryFragment extends Fragment{
             Bitmap bitmap = mThumbnailDownloader.getCachedImage(galleryItem.getUrl());
 
             if (bitmap == null){
-                Drawable placeholder = getResources().getDrawable(R.drawable.loading_icon);
+                Drawable placeholder = ContextCompat.getDrawable(getActivity(), R.drawable.loading_icon);
                 photoHolder.bindDrawable(placeholder);
                 mThumbnailDownloader.queueThumbnail(photoHolder, galleryItem.getUrl());
             }

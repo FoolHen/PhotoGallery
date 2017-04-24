@@ -90,9 +90,9 @@ public class ThumbnailDownloader<T> extends HandlerThread {
         mResponseHandler.post(new Runnable() {
             @Override
             public void run() {
-                /*if (mRequestMap.get(target) != url){
+                if (mRequestMap.get(target ) != url){
                     return;
-                }*/
+                }
                 mRequestMap.remove(target);
                 mThumbnailDownloadListener.onThumbnailDownloaded(target, bitmap);
             }
@@ -100,8 +100,6 @@ public class ThumbnailDownloader<T> extends HandlerThread {
     }
 
     public void queueThumbnail(T target, String url){
-        //Log.i(TAG, "Got a URL: " + url);
-
         if (url == null){
             mRequestMap.remove(target);
         } else {

@@ -3,11 +3,12 @@ package com.bignerdranch.android.photogallery;
 import android.app.IntentService;
 import android.content.Context;
 import android.content.Intent;
+import android.net.ConnectivityManager;
 import android.util.Log;
 
-/**
- * Created by Fulgen on 14/08/2016.
- */
+import java.util.List;
+
+
 public class PollService extends IntentService {
     private static final String TAG = "PollService";
 
@@ -21,6 +22,37 @@ public class PollService extends IntentService {
 
     @Override
     protected void onHandleIntent(Intent intent) {
-        Log.i(TAG, "Received and intent: " + intent);
+        if ( !isNetworkAvailableAndConnected()){
+            return;
+        }
+        String query = QueryPreferences.getStoredQuery(this);
+        String lastResultId = QueryPreferences.getLastResultId(this);
+        List<GalleryItem> items;
+
+        if (query == null){
+            items = new FlickrFetchr().fetchRecentPhotos(1);
+        } else {
+            items = new FlickrFetchr().searchPhotos(query,1);
+        }
+        if (items.size() == 0){
+            return;
+        }
+
+        String resultId = items.get(0).getId();
+        if (resultId.equals(lastResultId)){
+            Log.i(TAG, "Got an old result: " + resultId);
+        } else {
+            Log.i(TAG, "Got a new result: " + resultId);
+        }
+
+        QueryPreferences.setLastResultId(this, resultId);
+    }
+
+    private boolean isNetworkAvailableAndConnected(){
+        ConnectivityManager cm =
+                (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        boolean isNetworkAvailable = cm.getActiveNetworkInfo() != null;
+        boolean isNetworkConnected = cm.getActiveNetworkInfo().isConnected();
+        return isNetworkAvailable && isNetworkConnected;
     }
 }
